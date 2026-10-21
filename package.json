@@ -1,10 +1,9 @@
 {
   "name": "orbita",
   "version": "1.0.0",
-  "description": "",
+  "description": "Explore the solar system in 3D and test human survival on every planet",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
