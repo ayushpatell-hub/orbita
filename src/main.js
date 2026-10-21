@@ -2,30 +2,20 @@ import gsap from "gsap";
 import { Vector3 } from "three";
 import { SolarSystem } from "./scene/SolarSystem.js";
 import { PlanetSurface } from "./scene/PlanetSurface.js";
+import { createSurvivalSimulator } from "./ui/SurvivalSimulator.js";
 
 const $ = (id) => document.getElementById(id);
 const panel = $("panel");
-const result = $("result");
-
-const OUTCOMES = {
-  mercury: "You would be scorched or frozen within seconds, depending on which side you land. No air to breathe.",
-  venus: "Surface heat of 465°C and 92x Earth's pressure would kill you almost instantly.",
-  earth: "Breathable air, liquid water and a protective magnetic field. You survive indefinitely.",
-  mars: "The air is far too thin to breathe. You would lose consciousness in about 15 seconds, and the cold and radiation would do the rest.",
-  jupiter: "There is no solid surface. Crushing pressure and lethal radiation would kill you almost at once.",
-  saturn: "No solid surface and -140°C clouds. You would not survive.",
-  uranus: "No surface, -195°C and a toxic atmosphere. You would not survive.",
-  neptune: "No surface, -200°C and 2000 km/h winds. You would not survive.",
-};
 
 const system = new SolarSystem($("app"), (planet, mesh) => flyTo(planet, mesh));
 const surface = new PlanetSurface();
+const sim = createSurvivalSimulator($("simBtn"));
 const home = { pos: system.camera.position.clone(), target: system.controls.target.clone() };
 let focused = null;
 let savedSpeed = 0;
 
 function enterSurface(planet) {
-  system.running = false; // pause the solar system while exploring
+  system.running = false;
   surface.enter(planet.id);
 }
 
@@ -53,7 +43,7 @@ function flyTo(planet, mesh) {
 
   system.controls.minDistance = 1;
   $("hint").style.opacity = 0;
-  result.className = "";
+  sim.stop();
 
   gsap.to(system.camera.position, { x: end.x, y: end.y, z: end.z, duration: 3, ease: "power3.inOut" });
   gsap.to(system.controls.target, {
@@ -77,16 +67,12 @@ function showPanel(p) {
 
 $("simBtn").addEventListener("click", () => {
   if (!focused) return;
-  result.textContent = "Simulating...";
-  result.className = "alive";
-  setTimeout(() => {
-    result.textContent = OUTCOMES[focused.id];
-    result.className = focused.survivable ? "alive" : "dead";
-  }, 900);
+  sim.run(focused);
 });
 
 $("backBtn").addEventListener("click", () => {
   if (!focused) return;
+  sim.stop();
   leaveSurface();
   panel.classList.remove("open");
   const planet = focused;
@@ -103,8 +89,8 @@ $("backBtn").addEventListener("click", () => {
 });
 
 // ===== Loading screen =====
-const loader = document.getElementById("loader");
-const loaderBar = document.getElementById("loaderBar");
+const loader = $("loader");
+const loaderBar = $("loaderBar");
 let progress = 0;
 const loaderTimer = setInterval(() => {
   progress = Math.min(progress + Math.random() * 18, 95);
