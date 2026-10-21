@@ -35,43 +35,7 @@ const PHOTO = {
   neptune: "2k_neptune.jpg",
 };
 
-// [glow color, shell size relative to the planet]
-const ATMOS = {
-  venus: [0xffcc77, 1.07],
-  earth: [0x5aa8ff, 1.08],
-  mars: [0xff9966, 1.05],
-  jupiter: [0xffd9a0, 1.05],
-  saturn: [0xfff0c0, 1.05],
-  uranus: [0x9ff0ff, 1.07],
-  neptune: [0x4f7aff, 1.07],
-};
 const ROCKY = new Set(["mercury", "mars"]);
-
-function atmosphereMaterial(color) {
-  return new THREE.ShaderMaterial({
-    uniforms: { glowColor: { value: new THREE.Color(color) } },
-    vertexShader: `
-      varying vec3 vN;
-      varying vec3 vV;
-      void main() {
-        vN = normalize(normalMatrix * normal);
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        vV = normalize(-mv.xyz);
-        gl_Position = projectionMatrix * mv;
-      }`,
-    fragmentShader: `
-      uniform vec3 glowColor;
-      varying vec3 vN;
-      varying vec3 vV;
-      void main() {
-        float f = pow(1.0 - max(dot(vN, vV), 0.0), 3.0);
-        gl_FragColor = vec4(glowColor * f * 1.4, f);
-      }`,
-    blending: THREE.AdditiveBlending,
-    transparent: true,
-    depthWrite: false,
-  });
-}
 
 function dotTexture() {
   const c = document.createElement("canvas");
@@ -104,13 +68,13 @@ export class SolarSystem {
     this.renderer.setSize(innerWidth, innerHeight);
     container.appendChild(this.renderer.domElement);
 
-    // Bloom makes the Sun glow
+    // Bloom (kept soft so only the Sun glows)
     const size = new THREE.Vector2();
     this.renderer.getDrawingBufferSize(size);
     const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
     this.composer = new EffectComposer(this.renderer, target);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.7, 0.6, 1.0));
+    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.4, 1.0));
     this.composer.addPass(new OutputPass());
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -132,7 +96,7 @@ export class SolarSystem {
   }
 
   addLights() {
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.25));
     this.scene.add(new THREE.PointLight(0xffffff, 3, 0, 0));
   }
 
@@ -183,16 +147,18 @@ export class SolarSystem {
 
   addSun() {
     const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    mat.color.setRGB(2.2, 1.4, 0.4); // brighter than white so it blooms
+    mat.color.setRGB(2.2, 1.4, 0.4);
     this.sun = new THREE.Mesh(new THREE.SphereGeometry(7, 96, 96), mat);
 
     const glowMat = () =>
       new THREE.SpriteMaterial({ map: this.glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false });
+
+    // smaller haze so it doesn't cover the inner planets
     const glow = new THREE.Sprite(glowMat());
-    glow.scale.set(40, 40, 1);
+    glow.scale.set(22, 22, 1);
     const corona = new THREE.Sprite(glowMat());
-    corona.material.opacity = 0.35;
-    corona.scale.set(90, 90, 1);
+    corona.material.opacity = 0.18;
+    corona.scale.set(38, 38, 1);
     this.sun.add(glow, corona);
     this.scene.add(this.sun);
   }
@@ -206,15 +172,12 @@ export class SolarSystem {
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(data.size, 64, 64), mat);
     mesh.userData = data;
 
-    // holder keeps glow and rings still while the planet itself spins
+    // holder keeps rings still while the planet itself spins
     const holder = new THREE.Group();
     holder.position.x = data.distance;
     holder.add(mesh);
 
-    const atmo = ATMOS[data.id];
-    if (atmo) {
-      holder.add(new THREE.Mesh(new THREE.SphereGeometry(data.size * atmo[1], 64, 64), atmosphereMaterial(atmo[0])));
-    }
+    // (no glow shell around planets)
 
     let ring = null;
     if (data.ring) {
@@ -236,8 +199,7 @@ export class SolarSystem {
     this.planets.push({ data, mesh, holder, pivot, ring, clouds: null });
   }
 
-  // Textures load one by one after the first frame so the page opens fast.
-  // Each one tries the real photo first, then falls back to the generated texture.
+  // Each texture tries the real photo first, then the generated one.
   queueTextures() {
     const jobs = [];
 
