@@ -7,6 +7,10 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { PLANETS } from "../data/planets.js";
 import { makeTexture, createRings } from "./textures.js";
 
+// Make planets bigger (change this number to taste: 1.5 = a bit, 2.2 = a lot)
+const PLANET_SCALE = 1.7;
+const SUN_RADIUS = 6;
+
 // ---------- photo loading (falls back to generated textures if missing) ----------
 const texLoader = new THREE.TextureLoader();
 function loadPhoto(file, srgb = true) {
@@ -57,6 +61,14 @@ export class SolarSystem {
     this.clock = new THREE.Clock();
     this.planets = [];
 
+    // scale planet sizes once (main.js reads data.size for camera distance too)
+    PLANETS.forEach((p) => {
+      if (!p._scaled) {
+        p.size *= PLANET_SCALE;
+        p._scaled = true;
+      }
+    });
+
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x02030a);
 
@@ -68,13 +80,13 @@ export class SolarSystem {
     this.renderer.setSize(innerWidth, innerHeight);
     container.appendChild(this.renderer.domElement);
 
-    // Bloom (kept soft so only the Sun glows)
+    // Soft bloom: high threshold so only the brightest part of the Sun glows
     const size = new THREE.Vector2();
     this.renderer.getDrawingBufferSize(size);
     const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
     this.composer = new EffectComposer(this.renderer, target);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.4, 1.0));
+    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.3, 0.3, 0.95));
     this.composer.addPass(new OutputPass());
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -96,8 +108,8 @@ export class SolarSystem {
   }
 
   addLights() {
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.25));
-    this.scene.add(new THREE.PointLight(0xffffff, 3, 0, 0));
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    this.scene.add(new THREE.PointLight(0xffffff, 3.5, 0, 0));
   }
 
   addStars() {
@@ -137,8 +149,8 @@ export class SolarSystem {
     c.width = c.height = 256;
     const g = c.getContext("2d");
     const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-    grad.addColorStop(0, "rgba(255,200,80,1)");
-    grad.addColorStop(0.3, "rgba(255,140,30,0.5)");
+    grad.addColorStop(0, "rgba(255,190,70,0.9)");
+    grad.addColorStop(0.35, "rgba(255,130,30,0.35)");
     grad.addColorStop(1, "rgba(255,100,0,0)");
     g.fillStyle = grad;
     g.fillRect(0, 0, 256, 256);
@@ -146,19 +158,20 @@ export class SolarSystem {
   }
 
   addSun() {
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    mat.color.setRGB(2.2, 1.4, 0.4);
-    this.sun = new THREE.Mesh(new THREE.SphereGeometry(7, 96, 96), mat);
+    // normal orange color (not brighter than white) so the texture stays visible
+    const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.65, 0.2) });
+    this.sun = new THREE.Mesh(new THREE.SphereGeometry(SUN_RADIUS, 96, 96), mat);
 
     const glowMat = () =>
       new THREE.SpriteMaterial({ map: this.glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false });
 
-    // smaller haze so it doesn't cover the inner planets
+    // small, soft haze that stays close to the Sun
     const glow = new THREE.Sprite(glowMat());
-    glow.scale.set(22, 22, 1);
+    glow.scale.set(SUN_RADIUS * 3, SUN_RADIUS * 3, 1);
+    glow.material.opacity = 0.55;
     const corona = new THREE.Sprite(glowMat());
-    corona.material.opacity = 0.18;
-    corona.scale.set(38, 38, 1);
+    corona.material.opacity = 0.12;
+    corona.scale.set(SUN_RADIUS * 5, SUN_RADIUS * 5, 1);
     this.sun.add(glow, corona);
     this.scene.add(this.sun);
   }
@@ -177,8 +190,6 @@ export class SolarSystem {
     holder.position.x = data.distance;
     holder.add(mesh);
 
-    // (no glow shell around planets)
-
     let ring = null;
     if (data.ring) {
       ring = createRings(data.size * 1.4, data.size * 2.4);
@@ -192,7 +203,7 @@ export class SolarSystem {
 
     const orbit = new THREE.Mesh(
       new THREE.RingGeometry(data.distance - 0.08, data.distance + 0.08, 256),
-      new THREE.MeshBasicMaterial({ color: 0x4466aa, side: THREE.DoubleSide, transparent: true, opacity: 0.3 })
+      new THREE.MeshBasicMaterial({ color: 0x4466aa, side: THREE.DoubleSide, transparent: true, opacity: 0.25 })
     );
     orbit.rotation.x = Math.PI / 2;
     this.scene.add(orbit, pivot);
@@ -219,7 +230,7 @@ export class SolarSystem {
     jobs.push(async () => {
       const t = (await loadPhoto("2k_sun.jpg")) || makeTexture("sun", 1024, 512);
       this.sun.material.map = t;
-      this.sun.material.color.setRGB(1.8, 1.55, 1.3);
+      this.sun.material.color.setRGB(1.15, 1.0, 0.85);
       this.sun.material.needsUpdate = true;
     });
 
@@ -231,6 +242,10 @@ export class SolarSystem {
         const m = p.mesh.material;
         m.map = tex;
         m.color.set(0xffffff);
+        // faint self-light so the dark side is still visible
+        m.emissive = new THREE.Color(0xffffff);
+        m.emissiveMap = tex;
+        m.emissiveIntensity = 0.18;
         if (ROCKY.has(id)) {
           m.bumpMap = tex;
           m.bumpScale = 0.8;
