@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orbita | Explore the Solar System</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #02030a; font-family: "Segoe UI", sans-serif; color: #fff; }
+    #app { position: fixed; inset: 0; }
+
+    #topbar { position: fixed; top: 0; left: 0; right: 0; padding: 14px 22px; display: flex; justify-content: space-between;
+      background: linear-gradient(#000a, transparent); z-index: 5; pointer-events: none; }
+    #topbar h1 { font-size: 20px; letter-spacing: 4px; }
+    #topbar span { font-size: 13px; opacity: .7; }
+
+    #hint { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 13px; opacity: .7;
+      background: #0008; padding: 8px 16px; border-radius: 20px; z-index: 5; transition: opacity .4s; }
+
+    #panel { position: fixed; top: 70px; right: 20px; width: 320px; max-height: calc(100vh - 100px); overflow-y: auto;
+      background: #0a0f1fcc; backdrop-filter: blur(10px); border: 1px solid #4466aa66; border-radius: 14px;
+      padding: 20px; z-index: 6; transform: translateX(120%); transition: transform .6s ease; }
+    #panel.open { transform: translateX(0); }
+    #panel h2 { font-size: 26px; margin-bottom: 12px; color: #ffb84d; }
+    .row { margin-bottom: 10px; font-size: 14px; }
+    .row b { display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #7da2ff; }
+
+    button { cursor: pointer; border: 0; border-radius: 8px; padding: 10px 14px; font-size: 14px; font-weight: 600; width: 100%; margin-top: 8px; }
+    #simBtn { background: #e5484d; color: #fff; }
+    #simBtn:hover { background: #ff5b60; }
+    #backBtn { background: #2b3a67; color: #fff; }
+    #backBtn:hover { background: #3a4d88; }
+
+    #result { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 14px; line-height: 1.4; display: none; }
+    #result.dead { display: block; background: #4a1217; border: 1px solid #e5484d; }
+    #result.alive { display: block; background: #0f3a22; border: 1px solid #30a46c; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="topbar"><h1>ORBITA</h1><span>Click any planet to travel there</span></div>
+  <div id="hint">Drag to rotate · Scroll to zoom · Click a planet</div>
+
+  <div id="panel">
+    <h2 id="pName"></h2>
+    <div class="row"><b>Temperature</b><span id="pTemp"></span></div>
+    <div class="row"><b>Gravity</b><span id="pGravity"></span></div>
+    <div class="row"><b>Atmosphere</b><span id="pAtmo"></span></div>
+    <div class="row"><b>Water</b><span id="pWater"></span></div>
+    <div class="row"><b>Radiation</b><span id="pRad"></span></div>
+    <button id="simBtn">Step outside without a suit</button>
+    <div id="result"></div>
+    <button id="backBtn">Back to Solar System</button>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
