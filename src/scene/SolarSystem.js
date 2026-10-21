@@ -1,15 +1,39 @@
-import { createSun, createPlanet, createStarfield } from './textures.js';
-import { applyPhotoTextures, applySkyBackground } from './photoTextures.js';import * as THREE from "three";
+import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { PLANETS } from "../data/planets.js";
-import {
-  buildPlanetTexture, buildSunTexture, buildSkyTexture,
-  buildCloudTexture, buildRingTexture, dotTexture,
-} from "../utils/textures.js";
+import { makeTexture, createRings } from "./textures.js";
+
+// ---------- photo loading (falls back to generated textures if missing) ----------
+const texLoader = new THREE.TextureLoader();
+function loadPhoto(file, srgb = true) {
+  return new Promise((resolve) => {
+    texLoader.load(
+      "/textures/" + file,
+      (t) => {
+        if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 8;
+        resolve(t);
+      },
+      undefined,
+      () => resolve(null)
+    );
+  });
+}
+
+const PHOTO = {
+  mercury: "2k_mercury.jpg",
+  venus: "2k_venus_surface.jpg",
+  earth: "2k_earth_daymap.jpg",
+  mars: "2k_mars.jpg",
+  jupiter: "2k_jupiter.jpg",
+  saturn: "2k_saturn.jpg",
+  uranus: "2k_uranus.jpg",
+  neptune: "2k_neptune.jpg",
+};
 
 // [glow color, shell size relative to the planet]
 const ATMOS = {
@@ -49,6 +73,19 @@ function atmosphereMaterial(color) {
   });
 }
 
+function dotTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 32;
+  const g = c.getContext("2d");
+  const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, "rgba(255,255,255,1)");
+  gr.addColorStop(0.4, "rgba(255,255,255,0.8)");
+  gr.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 32, 32);
+  return new THREE.CanvasTexture(c);
+}
+
 export class SolarSystem {
   constructor(container, onPlanetClick) {
     this.container = container;
@@ -67,7 +104,7 @@ export class SolarSystem {
     this.renderer.setSize(innerWidth, innerHeight);
     container.appendChild(this.renderer.domElement);
 
-    // Bloom makes the Sun glow like the real thing
+    // Bloom makes the Sun glow
     const size = new THREE.Vector2();
     this.renderer.getDrawingBufferSize(size);
     const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
@@ -169,7 +206,7 @@ export class SolarSystem {
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(data.size, 64, 64), mat);
     mesh.userData = data;
 
-    // holder keeps the glow and rings still while the planet itself spins
+    // holder keeps glow and rings still while the planet itself spins
     const holder = new THREE.Group();
     holder.position.x = data.distance;
     holder.add(mesh);
@@ -179,21 +216,9 @@ export class SolarSystem {
       holder.add(new THREE.Mesh(new THREE.SphereGeometry(data.size * atmo[1], 64, 64), atmosphereMaterial(atmo[0])));
     }
 
+    let ring = null;
     if (data.ring) {
-      const inner = data.size * 1.4;
-      const outer = data.size * 2.4;
-      const geo = new THREE.RingGeometry(inner, outer, 128, 1);
-      const p = geo.attributes.position;
-      const uv = geo.attributes.uv;
-      const v = new THREE.Vector3();
-      for (let i = 0; i < p.count; i++) {
-        v.fromBufferAttribute(p, i);
-        uv.setXY(i, (v.length() - inner) / (outer - inner), 0.5);
-      }
-      const ring = new THREE.Mesh(
-        geo,
-        new THREE.MeshBasicMaterial({ map: buildRingTexture(), side: THREE.DoubleSide, transparent: true, depthWrite: false })
-      );
+      ring = createRings(data.size * 1.4, data.size * 2.4);
       ring.rotation.x = Math.PI / 2.3;
       holder.add(ring);
     }
@@ -208,33 +233,39 @@ export class SolarSystem {
     );
     orbit.rotation.x = Math.PI / 2;
     this.scene.add(orbit, pivot);
-    this.planets.push({ data, mesh, holder, pivot, clouds: null });
+    this.planets.push({ data, mesh, holder, pivot, ring, clouds: null });
   }
 
-  // Textures are generated one by one after the first frame so the page opens fast.
-  // Planets start as plain colors and turn realistic within a few seconds.
+  // Textures load one by one after the first frame so the page opens fast.
+  // Each one tries the real photo first, then falls back to the generated texture.
   queueTextures() {
     const jobs = [];
 
-    jobs.push(() => {
+    // Milky Way sky
+    jobs.push(async () => {
+      const t = await loadPhoto("2k_stars_milky_way.jpg");
+      if (!t) return;
       const sky = new THREE.Mesh(
         new THREE.SphereGeometry(1900, 48, 24),
-        new THREE.MeshBasicMaterial({ map: buildSkyTexture(), side: THREE.BackSide, depthWrite: false })
+        new THREE.MeshBasicMaterial({ map: t, color: 0xaaaaaa, side: THREE.BackSide, depthWrite: false })
       );
       sky.renderOrder = -1;
       this.scene.add(sky);
     });
 
-    jobs.push(() => {
-      this.sun.material.map = buildSunTexture();
+    // Sun
+    jobs.push(async () => {
+      const t = (await loadPhoto("2k_sun.jpg")) || makeTexture("sun", 1024, 512);
+      this.sun.material.map = t;
       this.sun.material.color.setRGB(1.8, 1.55, 1.3);
       this.sun.material.needsUpdate = true;
     });
 
+    // Planets
     this.planets.forEach((p) =>
-      jobs.push(() => {
+      jobs.push(async () => {
         const id = p.data.id;
-        const tex = buildPlanetTexture(id);
+        const tex = (PHOTO[id] && (await loadPhoto(PHOTO[id]))) || makeTexture(id);
         const m = p.mesh.material;
         m.map = tex;
         m.color.set(0xffffff);
@@ -243,21 +274,39 @@ export class SolarSystem {
           m.bumpScale = 0.8;
         }
         m.needsUpdate = true;
+
         if (id === "earth") {
-          const clouds = new THREE.Mesh(
-            new THREE.SphereGeometry(p.data.size * 1.012, 64, 64),
-            new THREE.MeshStandardMaterial({ map: buildCloudTexture(), transparent: true, depthWrite: false, roughness: 1 })
-          );
-          p.holder.add(clouds);
-          p.clouds = clouds;
+          const ct = await loadPhoto("2k_earth_clouds.jpg", false);
+          if (ct) {
+            const clouds = new THREE.Mesh(
+              new THREE.SphereGeometry(p.data.size * 1.012, 64, 64),
+              new THREE.MeshStandardMaterial({
+                color: 0xffffff, alphaMap: ct, transparent: true, depthWrite: false, opacity: 0.9, roughness: 1,
+              })
+            );
+            p.holder.add(clouds);
+            p.clouds = clouds;
+          }
+        }
+
+        if (id === "saturn" && p.ring) {
+          const rt = await loadPhoto("2k_saturn_ring_alpha.png");
+          if (rt) {
+            p.ring.material.map = rt;
+            p.ring.material.needsUpdate = true;
+          }
         }
       })
     );
 
-    const next = () => {
+    const next = async () => {
       const job = jobs.shift();
       if (!job) return;
-      job();
+      try {
+        await job();
+      } catch (e) {
+        console.warn("texture job failed", e);
+      }
       setTimeout(next, 40);
     };
     setTimeout(next, 300);
