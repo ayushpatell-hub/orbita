@@ -101,3 +101,27 @@ $("backBtn").addEventListener("click", () => {
     },
   });
 });
+
+// ===== Loading screen =====
+const loader = document.getElementById("loader");
+const loaderBar = document.getElementById("loaderBar");
+let progress = 0;
+const loaderTimer = setInterval(() => {
+  progress = Math.min(progress + Math.random() * 18, 95);
+  loaderBar.style.width = progress + "%";
+}, 150);
+
+function hideLoader() {
+  clearInterval(loaderTimer);
+  loaderBar.style.width = "100%";
+  setTimeout(() => {
+    loader.classList.add("done");
+    setTimeout(() => loader.remove(), 1000);
+  }, 400);
+}
+
+if (document.readyState === "complete") {
+  setTimeout(hideLoader, 800);
+} else {
+  window.addEventListener("load", () => setTimeout(hideLoader, 800));
+}

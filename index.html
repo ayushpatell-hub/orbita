@@ -34,9 +34,30 @@
     #result { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 14px; line-height: 1.4; display: none; }
     #result.dead { display: block; background: #4a1217; border: 1px solid #e5484d; }
     #result.alive { display: block; background: #0f3a22; border: 1px solid #30a46c; }
+
+    /* Loading screen */
+    #loader { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; background: radial-gradient(circle at center, #0b1330, #02030a 70%);
+      transition: opacity .9s ease; }
+    #loader.done { opacity: 0; pointer-events: none; }
+    #loader .planet { width: 70px; height: 70px; border-radius: 50%; margin-bottom: 28px;
+      background: radial-gradient(circle at 30% 30%, #ffd27a, #ff8a1f 55%, #7a2a00);
+      box-shadow: 0 0 40px #ff8a1f88; animation: pulse 1.6s ease-in-out infinite; }
+    #loader h1 { font-size: 34px; letter-spacing: 12px; margin-bottom: 8px; padding-left: 12px; }
+    #loader p { font-size: 13px; opacity: .6; margin-bottom: 26px; letter-spacing: 2px; }
+    #loaderTrack { width: 260px; height: 4px; background: #ffffff22; border-radius: 4px; overflow: hidden; }
+    #loaderBar { width: 0; height: 100%; background: linear-gradient(90deg, #ff8a1f, #ffd27a); transition: width .3s ease; }
+    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
   </style>
 </head>
 <body>
+  <div id="loader">
+    <div class="planet"></div>
+    <h1>ORBITA</h1>
+    <p>PREPARING YOUR JOURNEY</p>
+    <div id="loaderTrack"><div id="loaderBar"></div></div>
+  </div>
+
   <div id="app"></div>
 
   <div id="topbar"><h1>ORBITA</h1><span>Click any planet to travel there</span></div>
